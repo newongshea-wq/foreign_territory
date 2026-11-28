@@ -72,3 +72,84 @@ func resolve_contact_damage(floor_number: int, room_number: int, tier_multiplier
 		return 0.0
 	var scalar := EnemyConstants.get_level_scalar(floor_number, room_number)
 	return EnemyConstants.hearts_to_damage(contact_damage_hearts) * scalar * tier_multiplier
+
+
+# returns move speed with a capped depth bonus so late enemies stay dodgeable
+func resolve_move_speed(floor_number: int, room_number: int, tier_multiplier: float = 1.0) -> float:
+	var scalar := minf(1.65, EnemyConstants.get_level_scalar(floor_number, room_number))
+	return move_speed * scalar * tier_multiplier
+
+# returns experience granted on death at a given depth
+func resolve_xp(floor_number: int, tier_multiplier: float = 1.0) -> int:
+	return int(round(float(xp_reward + floor_number * 2) * tier_multiplier))
+
+# returns aggro distance in pixels
+func get_detect_range() -> float:
+	return EnemyConstants.tiles_to_pixels(detect_range_tiles)
+
+# returns standoff distance in pixels
+func get_preferred_range() -> float:
+	return EnemyConstants.tiles_to_pixels(preferred_range_tiles)
+
+# returns disengage distance in pixels, or 0.0 when enemy never disengages
+func get_leash_range() -> float:
+	return EnemyConstants.tiles_to_pixels(leash_range_tiles)
+
+# returns flocking separation radius in pixels
+func get_separation_radius() -> float:
+	return EnemyConstants.tiles_to_pixels(separation_radius_tiles)
+
+# returns how many instances this draw should spawn
+func roll_pack_size() -> int:
+	var low := maxi(1, pack_size.x)
+	var high := maxi(low, pack_size.y)
+	return randi_range(low, high)
+
+
+# returns attack with given id, or null when this type has none
+func find_attack(attack_id: StringName) -> AttackData:
+	for attack in attacks:
+		if attack != null and attack.id == attack_id:
+			return attack
+	return null
+
+
+# returns first attack in priority order whose range brackets distance
+func select_attack(distance_pixels: float)-> AttackData:
+	for attack in attacks:
+		if attack != null and attack.is_in_range(distance_pixels):
+			return attack
+	return null
+
+
+# returns longest attack range in pixels, used to size chase stop distance
+func get_longest_attack_range() -> float:
+	var longest := 0.0
+	for attack in attacks:
+		if attack != null:
+			longest = maxf(longest, attack.get_range())
+	return longest
+
+
+# creates an unconfigured instance of this enemy's scene
+func spawn() -> Node2D:
+	if scene == null:
+		push_error("EnemyData '%s' has no scene assigned" % id)
+		return null
+	return scene.instantiate() as Node2D
+
+
+# returns a list of authoring mistakes, empty when resource is usable
+func validate() -> PackedStringArray:
+	var problems := PackedStringArray()
+	if String(id).is_empty():
+		problems.append("id is empty")
+	if scene == null:
+		problems.append("scene is unassigned")
+	if base_hits <= 0.0:
+		problems.append("base_hits must be greater than zero")
+	if contact_damage_hearts <= 0.0 and attacks.is_empty():
+		problems.append("enemy has no contact damage and no attacks")
+	if pack_size.y < pack_size.x:
+		problems.append("pack_size.y is smaller than pack_size.x")
+	return problems
